@@ -3,6 +3,8 @@ import db from "../db/postgresql";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prepare_response, validateMobile } from "../helpers/utils";
+import { auth } from "../middlewares/auth";
+import axios from "axios";
 
 const router = Router();
 
@@ -41,9 +43,13 @@ router.post(
       const user = await db.query("select id from users where mobile = $1", [
         mobile,
       ]);
-      console.log({ user });
+
       if (user.rowCount > 0) {
-        return res.status(400).json(prepare_response("user already exists"));
+        return res
+          .status(400)
+          .json(
+            prepare_response("user with this mobile number already exists")
+          );
       }
 
       //generating user token
@@ -90,7 +96,6 @@ router.post(
       process.env.JWT_SECRET,
       { expiresIn: "7 days" }
     );
-    token = token.split(".")[0];
     try {
       const update = await db.query(
         "update users set authentication_token = $1 where id = $2",
@@ -103,5 +108,61 @@ router.post(
     res.status(200).json(prepare_response("logged in", token));
   }
 );
+
+router.post(
+  "/send-otp",
+  auth,
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<any> => {
+    try {
+      const mobileNumber = request.body.mobile_number;
+      const otp = Math.floor(100000 + Math.random() * 900000);
+
+      const userData = await db.query(
+        "select id from users where mobile = $1",
+        [mobileNumber]
+      );
+      if (userData.rowCount == 0) {
+        return response
+          .status(400)
+          .json(prepare_response("no user associated with this mobile number"));
+      }
+      const userId = userData.rows[0].id;
+      const sendOtpResponse = await send_otp_helper(mobileNumber, otp);
+      if (!sendOtpResponse) {
+        return response.status(400).json(prepare_response("error sending OTP"));
+      }
+      await db.query("update users set otp = $1 where id = $2", [otp, userId]);
+
+      return response
+        .status(200)
+        .send(prepare_response("OTP successfully sent"));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+const send_otp_helper = async (
+  mobileNumber: string,
+  otp: number
+): Promise<boolean> => {
+  try {
+    await axios.get("https://www.fast2sms.com/dev/bulkV2", {
+      params: {
+        authorization: process.env.FAST_2_SUM_KEY,
+        variable_values: `Your OTP for logging into SkinSense is ${otp}`,
+        route: "otp",
+        numbers: mobileNumber,
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export default router;
