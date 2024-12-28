@@ -1,3 +1,4 @@
+require("dotenv").config();
 import morgan from "morgan";
 import express, { Request, Response } from "express";
 import postgres from "./db/postgresql";

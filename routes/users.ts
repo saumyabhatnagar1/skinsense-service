@@ -87,7 +87,7 @@ router.post(
       {
         _id: user_id,
       },
-      "JQT_SECRET",
+      process.env.JWT_SECRET,
       { expiresIn: "7 days" }
     );
     token = token.split(".")[0];
