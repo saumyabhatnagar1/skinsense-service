@@ -14,7 +14,6 @@ const router = Router();
 router.get("/", async (req: Request, res: Response): Promise<any> => {
   try {
     const rows = await db.query("select * from users;");
-    console.log(rows.rows[0]);
     return res.status(200).json({ data: rows });
   } catch (err) {
     console.log(err);
@@ -142,6 +141,26 @@ router.post(
         .send(prepare_response("OTP successfully sent"));
     } catch (e) {
       next(e);
+    }
+  }
+);
+
+router.post(
+  "/update-additional-details",
+  auth,
+  async (req: any, res: Response, next: NextFunction): Promise<any> => {
+    try {
+      const { age, gender, address } = req.body;
+      const user_id = req.user.id;
+      await db.query(
+        "update slots set age = $1, address = $2, gender = $3 where user_id = $4",
+        [age, address, gender, user_id]
+      );
+      return res
+        .status(200)
+        .send(prepare_response("user details updated successfully"));
+    } catch (e) {
+      return next(e);
     }
   }
 );
