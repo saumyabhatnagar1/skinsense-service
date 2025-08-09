@@ -53,4 +53,31 @@ router.post(
   }
 );
 
+router.post(
+  "/update-slot",
+  auth,
+  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    try {
+      const { slot_id, status } = req.body;
+      let approved;
+      if (status == "approved") {
+        approved = true;
+      } else if (status == "rejected") {
+        approved = false;
+      } else {
+        return res.status(400).send(prepare_response("invalid status"));
+      }
+      const result = await db.query(
+        "update slots set approved = $1 where slot_id = $2 returning *",
+        [approved, slot_id]
+      );
+      return res
+        .status(200)
+        .send(prepare_response(`slot ${status} successfully`, result.rows[0]));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 export default router;
