@@ -68,24 +68,48 @@ router.post(
 );
 
 router.post(
-  "/login",
+  "/send-otp",
   async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     const mobile = req.body.mobile;
-    const password = req.body.password;
-
-    const userData = await db.query(
-      "select id, password_digest from users where mobile =  $1",
-      [mobile]
+    const OTP = Math.round(
+      Math.random() * 100000 +
+        Math.random() * 10000 +
+        Math.random() * 1000 +
+        Math.random() * 100 +
+        Math.random() * 10
     );
 
+    //TODO Send otp
+
+    try {
+      const upsertResult = await db.query(
+        "INSERT INTO users (mobile, otp) values ($1, $2) on conflict (mobile) do update set otp = EXCLUDED.otp",
+        [mobile, OTP]
+      );
+      return res.status(200).send(prepare_response("otp sent successfully"));
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+
+router.post(
+  "/public/login",
+  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    const mobile = req.body.mobile;
+    const otp = req.body.otp;
+
+    const userData = await db.query(
+      "select id, otp from users where mobile =  $1",
+      [mobile]
+    );
+    console.log(mobile);
+    console.log(userData.rowCount);
     if (userData.rowCount == 0) {
       return next({ statusCode: 400, message: "User does not exists" });
     }
-    const isMatch = await bcrypt.compare(
-      password,
-      userData.rows[0].password_digest
-    );
-    if (!isMatch) return next({ statusCode: 400, message: "invalid password" });
+    const isMatch = userData.rows[0].otp == otp;
+    if (!isMatch) return next({ statusCode: 400, message: "invalid otp" });
     const user_id = userData.rows[0].id;
     //generating user token
     let token: string = jwt.sign(
@@ -150,11 +174,11 @@ router.post(
   auth,
   async (req: any, res: Response, next: NextFunction): Promise<any> => {
     try {
-      const { age, gender, address } = req.body;
+      const { age, gender, address, name } = req.body;
       const user_id = req.user.id;
       await db.query(
-        "update slots set age = $1, address = $2, gender = $3 where user_id = $4",
-        [age, address, gender, user_id]
+        "update slots set age = $1, address = $2, gender = $3, username = $5 where user_id = $4",
+        [age, address, gender, user_id, name]
       );
       return res
         .status(200)
