@@ -68,32 +68,6 @@ router.post(
 );
 
 router.post(
-  "/send-otp",
-  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
-    const mobile = req.body.mobile;
-    const OTP = Math.round(
-      Math.random() * 100000 +
-        Math.random() * 10000 +
-        Math.random() * 1000 +
-        Math.random() * 100 +
-        Math.random() * 10
-    );
-
-    //TODO Send otp
-
-    try {
-      const upsertResult = await db.query(
-        "INSERT INTO users (mobile, otp) values ($1, $2) on conflict (mobile) do update set otp = EXCLUDED.otp",
-        [mobile, OTP]
-      );
-      return res.status(200).send(prepare_response("otp sent successfully"));
-    } catch (e) {
-      return next(e);
-    }
-  }
-);
-
-router.post(
   "/public/login",
   async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     const mobile = req.body.mobile;
@@ -128,13 +102,14 @@ router.post(
       next(e);
     }
 
-    res.status(200).json(prepare_response("logged in", token));
+    res
+      .status(200)
+      .json(prepare_response("logged in", { token: token, id: user_id }));
   }
 );
 
 router.post(
   "/send-otp",
-  auth,
   async (
     request: Request,
     response: Response,
@@ -144,21 +119,10 @@ router.post(
       const mobileNumber = request.body.mobile_number;
       const otp = Math.floor(100000 + Math.random() * 900000);
 
-      const userData = await db.query(
-        "select id from users where mobile = $1",
-        [mobileNumber]
-      );
-      if (userData.rowCount == 0) {
-        return response
-          .status(400)
-          .json(prepare_response("no user associated with this mobile number"));
-      }
-      const userId = userData.rows[0].id;
-      const sendOtpResponse = await send_otp_helper(mobileNumber, otp);
-      if (!sendOtpResponse) {
-        return response.status(400).json(prepare_response("error sending OTP"));
-      }
-      await db.query("update users set otp = $1 where id = $2", [otp, userId]);
+      await db.query("update users set otp = $1 where mobile = $2", [
+        otp,
+        mobileNumber,
+      ]);
 
       return response
         .status(200)
@@ -177,12 +141,31 @@ router.post(
       const { age, gender, address, name } = req.body;
       const user_id = req.user.id;
       await db.query(
-        "update slots set age = $1, address = $2, gender = $3, username = $5 where user_id = $4",
+        "update users set age = $1, address = $2, gender = $3, name = $5 where id = $4",
         [age, address, gender, user_id, name]
       );
       return res
         .status(200)
         .send(prepare_response("user details updated successfully"));
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+
+router.get(
+  "/user",
+  auth,
+  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    try {
+      const { id } = req.query;
+      const user = await db.query("select * from users where id = $1", [id]);
+      if (user.rowCount == 0) {
+        return res.status(400).send(prepare_response("no user found", []));
+      }
+      return res
+        .status(200)
+        .send(prepare_response("user data fetched successfully", user.rows[0]));
     } catch (e) {
       return next(e);
     }
