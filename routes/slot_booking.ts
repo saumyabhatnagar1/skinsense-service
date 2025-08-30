@@ -3,6 +3,9 @@ import { auth } from "../middlewares/auth";
 import db from "../db/postgresql";
 import { prepare_response } from "../helpers/utils";
 import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 const router = Router();
 
@@ -20,15 +23,16 @@ router.get(
 );
 
 router.post(
-  "/",
+  "/book-slot",
   auth,
   async (req: any, res: Response, next: NextFunction): Promise<any> => {
     try {
-      const { datetime, reason, type } = req.body;
-      const dateObject = dayjs(datetime, "dd-mm-yyyy hh:mm:ss");
+      const { datetime, reason, type } = req.body.data;
+      const parsed = dayjs(datetime, "DD-MM-YYYY hh:mm A", true);
+      const jsDate = parsed.toDate();
       const alreadyExisting = await db.query(
         "select * from slots where slot_date = $1 and is_active = $2",
-        [dateObject, true]
+        [jsDate, true]
       );
       if (alreadyExisting.rowCount > 0) {
         return res
@@ -41,8 +45,8 @@ router.post(
       }
       const user_id = req.user.id;
       const result = await db.query(
-        "insert into slots (slot_date, is_active, is_expired, reason, visited, user_id) values ($1, $2, $3, $4, $5, $6, $7) returning *",
-        [dateObject, true, false, reason, false, user_id, type]
+        "insert into slots (slot_date, is_active, is_expired, reason, visited, user_id, type) values ($1, $2, $3, $4, $5, $6, $7) returning *",
+        [jsDate, true, false, reason, false, user_id, type]
       );
       return res
         .status(200)
