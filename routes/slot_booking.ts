@@ -14,7 +14,20 @@ router.get(
   auth,
   async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
-      const rows = await db.query("select * from slots");
+      const { is_approved } = req.query;
+      const values = [];
+      const conditions = [];
+
+      if (is_approved) {
+        values.push(is_approved);
+        conditions.push(`approved = $${values.length}`);
+      }
+      let query = "select * from slots join users on users.id = slots.user_id";
+      if (conditions.length > 0) {
+        query += " WHERE " + conditions.join(" AND ");
+      }
+      console.log(query, values);
+      const rows = await db.query(query, values);
       return res.status(200).json({ data: rows.rows });
     } catch (e) {
       return next(e);
@@ -62,12 +75,14 @@ router.post(
   auth,
   async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
-      const { slot_id, status } = req.body;
+      const { slot_id, status, new_time } = req.body;
       let approved;
       if (status == "approved") {
         approved = true;
       } else if (status == "rejected") {
         approved = false;
+      } else if (status == "shift") {
+        //
       } else {
         return res.status(400).send(prepare_response("invalid status"));
       }
