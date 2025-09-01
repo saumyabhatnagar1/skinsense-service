@@ -26,7 +26,6 @@ router.get(
       if (conditions.length > 0) {
         query += " WHERE " + conditions.join(" AND ");
       }
-      console.log(query, values);
       const rows = await db.query(query, values);
       return res.status(200).json({ data: rows.rows });
     } catch (e) {
@@ -76,23 +75,69 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
       const { slot_id, status, new_time } = req.body;
-      let approved;
+      const values = [];
+      const conditions = [];
+
       if (status == "approved") {
-        approved = true;
+        values.push(true);
+        conditions.push(`approved = $${values.length}`);
       } else if (status == "rejected") {
-        approved = false;
-      } else if (status == "shift") {
-        //
+        values.push(false);
+        conditions.push(`approved = $${values.length}`);
+      } else if (status == "shifted") {
+        const new_slot = dayjs(new_time, "hh:mm A");
+
+        if (!new_slot.isValid()) {
+          return res
+            .status(400)
+            .send(prepare_response("invalid datetime format"));
+        }
+        values.push(new_slot.toDate());
+        conditions.push(`slot_date = $${values.length}`);
       } else {
         return res.status(400).send(prepare_response("invalid status"));
       }
-      const result = await db.query(
-        "update slots set approved = $1 where slot_id = $2 returning *",
-        [approved, slot_id]
-      );
+      values.push(slot_id);
+      const whereCondition = `slot_id = $${values.length}`;
+
+      let query = `update slots set ${conditions.join(
+        ", "
+      )} where ${whereCondition}`;
+      const result = await db.query(query, values);
       return res
         .status(200)
         .send(prepare_response(`slot ${status} successfully`, result.rows[0]));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+router.post(
+  "/mark-unavailable",
+  auth,
+  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    try {
+      const { datetime } = req.body;
+      const parsed = dayjs(datetime, "YYYY-MM-DD hh:mm A");
+      if (!parsed.isValid()) {
+        return res
+          .status(400)
+          .send(prepare_response("invalid datetime format"));
+      }
+      const result = await db.query(
+        "insert into unavailable_slots (unavailable_slot) values ($1) returning *",
+        [parsed.toDate()]
+      );
+      if (result.rowCount == 1) {
+        return res
+          .status(200)
+          .send(prepare_response("unavailable slot marked", result.rows[0]));
+      } else {
+        return res
+          .status(400)
+          .send(prepare_response("failed to mark unavailable slot"));
+      }
     } catch (e) {
       next(e);
     }
