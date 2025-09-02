@@ -4,6 +4,7 @@ import db from "../db/postgresql";
 import { prepare_response } from "../helpers/utils";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { create_notification } from "../routes/notifications";
 
 dayjs.extend(customParseFormat);
 
@@ -60,6 +61,11 @@ router.post(
         "insert into slots (slot_date, is_active, is_expired, reason, visited, user_id, type) values ($1, $2, $3, $4, $5, $6, $7) returning *",
         [jsDate, true, false, reason, false, user_id, type]
       );
+      await create_notification(
+        "Slot Booked",
+        "Your slot has been booked successfully",
+        user_id
+      );
       return res
         .status(200)
         .send(prepare_response("slot booked", result.rows[0]));
@@ -77,6 +83,14 @@ router.post(
       const { slot_id, status, new_time } = req.body;
       const values = [];
       const conditions = [];
+
+      const slot = await db.query("select * from slots where slot_id = $1", [
+        slot_id,
+      ]);
+      if (slot.rowCount == 0) {
+        return res.status(400).send(prepare_response("slot not found"));
+      }
+      const user_id = slot.rows[0].user_id;
 
       if (status == "approved") {
         values.push(true);
@@ -104,6 +118,25 @@ router.post(
         ", "
       )} where ${whereCondition}`;
       const result = await db.query(query, values);
+      if (status == "rejected") {
+        await create_notification(
+          "Slot Rejected",
+          "Your slot has been rejected",
+          user_id
+        );
+      } else if (status == "approved") {
+        await create_notification(
+          "Slot Approved",
+          "Your slot has been approved",
+          user_id
+        );
+      } else if (status == "shifted") {
+        await create_notification(
+          "Slot Shifted",
+          "Your slot has been shifted to a new time: " + new_time,
+          user_id
+        );
+      }
       return res
         .status(200)
         .send(prepare_response(`slot ${status} successfully`, result.rows[0]));
