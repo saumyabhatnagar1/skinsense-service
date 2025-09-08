@@ -177,4 +177,24 @@ router.post(
   }
 );
 
+router.get(
+  "/unavailable-slots",
+  auth,
+  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+    try {
+      const unavailable_slots = await db.query(
+        "select * from unavailable_slots"
+      );
+
+      return res
+        .status(200)
+        .json(
+          prepare_response("unavailable slots fetched", unavailable_slots.rows)
+        );
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 export default router;
