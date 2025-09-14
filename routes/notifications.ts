@@ -14,7 +14,9 @@ router.get("/", auth, async (req: any, res: Response, next: NextFunction) => {
     );
     res
       .status(200)
-      .send(prepare_response("notifications fetched", { data: notifications }));
+      .send(
+        prepare_response("notifications fetched", { data: notifications.rows })
+      );
   } catch (e) {
     next(e);
   }
