@@ -63,7 +63,9 @@ router.post(
       );
       await create_notification(
         "Slot Booked",
-        "Your slot has been booked successfully",
+        `Your appointment slot for ${dayjs(jsDate).format(
+          "DD-MM-YYYY"
+        )} at ${dayjs(jsDate).format("hh:mm A")} has been booked successfully`,
         user_id
       );
       return res
@@ -121,7 +123,7 @@ router.post(
       if (status == "rejected") {
         await create_notification(
           "Slot Rejected",
-          "Your slot has been rejected",
+          "We are sorry to inform you that your appointment slot has been rejected",
           user_id
         );
       } else if (status == "approved") {
@@ -133,7 +135,7 @@ router.post(
       } else if (status == "shifted") {
         await create_notification(
           "Slot Shifted",
-          "Your slot has been shifted to a new time: " + new_time,
+          "Your new slot timing for the appointment is " + new_time,
           user_id
         );
       }
